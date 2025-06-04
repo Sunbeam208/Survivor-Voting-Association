@@ -1,0 +1,669 @@
+---
+title: "Survivor Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("survivoR")
+library(survivoR)
+library(tidyverse)
+```
+
+
+Pre-Processing:
+- For split votes players in the same alliance may vote differently
+```{r}
+
+# Creating two columns that have the names of the split vote
+## Shows who is working together, but may not be voting the same
+spliting = vote_history %>% filter(!is.na(split_vote)) %>% filter(split_vote != "No vote")
+
+spliting$split_vote_1 = NA
+spliting$split_vote_2 = NA
+
+for (i in 1:nrow(spliting)){
+  spliting$split_vote_1[i] = str_split(spliting$split_vote[i], ", ")[[1]][1]
+  spliting$split_vote_2[i] = str_split(spliting$split_vote[i], ", ")[[1]][2]
+  if(!is.na(spliting$vote[i])){
+    if (spliting$split_vote_1[i] == spliting$vote[i]){
+      spliting$split_vote_1[i] = spliting$vote_id[i]
+    }
+    if(spliting$split_vote_2[i] == spliting$vote[i]){
+      spliting$split_vote_2[i] = spliting$vote_id[i]
+    }
+  }
+}
+
+# Combining the identified split votes
+vote_history = left_join(vote_history, spliting)
+
+```
+
+First 10 sesons:
+- sog_id can skip due to medical evacuations
+- split votes are now accounted for
+- automaticall writes to a table formated correctly
+```{r}
+alliance = c()
+voting_groups = list()
+seen = c()
+
+for (l in 1:10){ # Number of seasons I want to look at
+  vote_season = vote_history %>% filter(season == l) %>% filter(version == "US")
+  for ( i in 1:as.numeric(max(unique(vote_season$sog_id))) ){ # Number of stages of the game
+    if (nrow(vote_season %>% filter(sog_id == i)) > 0){# If a stage of a game is skipped (example: Medical Evacuation)
+    round = vote_season %>% filter(sog_id == i)
+    for ( j in 1 : (nrow(round) - 1) ){ # Number of voters in the stage of game
+      if (!is.na(round[[j, 21]])){ # If player j had a vote
+        if ( !(round[[j, 20]] %in% seen) ){ # No repeats 
+          alliance = c(round[[j, 20]])
+          seen = c(seen, round[[j, 20]])
+          for ( k in (j+1) : nrow(round) ){ # Comparing votes
+            if (!is.na(round[[k, 21]])){ # If player k had a vote
+              if ( ((round[j, 21] == round[k, 21])) &  (round[j, 20] != round[k, 20]) ){ # If the vote matched and its not the same person
+                alliance = append(alliance, round[[k, 20]])
+                seen = c(seen, round[[k, 20]])
+              }
+              else if(!is.na(round[j, 25]) & !is.na(round[k, 25])){
+                if( ( (round[j, 21] == round[j, 25]) | (round[j, 21] == round[j, 26]) ) & ( (round[k, 21] == round[k, 25]) | (round[k, 21] == round[k, 26]) ) ){
+                  alliance = append(alliance, round[[k, 20]])
+                  seen = c(seen, round[[k, 20]])
+                }
+              }
+            }
+          }
+          voting_groups = c(voting_groups, list(alliance))
+        }
+      }
+    }
+    if (!is.na(round[[nrow(round), 20]])){
+    if (!(round[[nrow(round), 20]] %in% seen)){
+      alliance = c(round[[nrow(round), 20]])
+      voting_groups = c(voting_groups, list(alliance))
+    }
+    }
+    seen = c() #Reset for each sog_id
+    }
+  }
+  
+  #Formatting for exporting as a table
+  largest_alliance = 0
+for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) > largest_alliance){
+    largest_alliance = length(voting_groups[[i]])
+  }
+}
+  for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) < largest_alliance){
+    length(voting_groups[[i]]) = largest_alliance
+  }
+}
+  # Exporting a table
+  df <- do.call(rbind, lapply(voting_groups, as.data.frame))
+  file_name <- paste0("s", l, "_voting_groups.txt")
+  write.table(do.call(rbind, voting_groups), file_name, row.names = FALSE, col.names = FALSE)
+  
+  #Resetting for each season
+  voting_groups = list()
+}
+```
+
+Seasons 11 through 20
+```{r}
+alliance = c()
+voting_groups = list()
+seen = c()
+
+for (l in 11:20){ # Number of seasons I want to look at
+  vote_season = vote_history %>% filter(season == l) %>% filter(version == "US")
+  for ( i in 1:as.numeric(max(unique(vote_season$sog_id))) ){ # Number of stages of the game
+    if (nrow(vote_season %>% filter(sog_id == i)) > 0){# If a stage of a game is skipped (example: Medical Evacuation)
+    round = vote_season %>% filter(sog_id == i)
+    for ( j in 1 : (nrow(round) - 1) ){ # Number of voters in the stage of game
+      if (!is.na(round[[j, 21]])){ # If player j had a vote
+        if ( !(round[[j, 20]] %in% seen) ){ # No repeats 
+          alliance = c(round[[j, 20]])
+          seen = c(seen, round[[j, 20]])
+          for ( k in (j+1) : nrow(round) ){ # Comparing votes
+            if (!is.na(round[[k, 21]])){ # If player k had a vote
+              if ( ((round[j, 21] == round[k, 21])) &  (round[j, 20] != round[k, 20]) ){ # If the vote matched and its not the same person
+                alliance = append(alliance, round[[k, 20]])
+                seen = c(seen, round[[k, 20]])
+              }
+              else if(!is.na(round[j, 25]) & !is.na(round[k, 25])){
+                if( ( (round[j, 21] == round[j, 25]) | (round[j, 21] == round[j, 26]) ) & ( (round[k, 21] == round[k, 25]) | (round[k, 21] == round[k, 26]) ) ){
+                  alliance = append(alliance, round[[k, 20]])
+                  seen = c(seen, round[[k, 20]])
+                }
+              }
+            }
+          }
+          voting_groups = c(voting_groups, list(alliance))
+          }
+        }
+    }
+    if (!is.na(round[[nrow(round), 20]])){
+    if (!(round[[nrow(round), 20]] %in% seen)){
+      alliance = c(round[[nrow(round), 20]])
+      voting_groups = c(voting_groups, list(alliance))
+    }
+    }
+    seen = c() #Reset for each sog_id
+    }
+  }
+  
+  #Formatting for exporting as a table
+  largest_alliance = 0
+for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) > largest_alliance){
+    largest_alliance = length(voting_groups[[i]])
+  }
+}
+  for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) < largest_alliance){
+    length(voting_groups[[i]]) = largest_alliance
+  }
+}
+  # Exporting a table
+  df <- do.call(rbind, lapply(voting_groups, as.data.frame))
+  file_name <- paste0("s", l, "_voting_groups.txt")
+  write.table(do.call(rbind, voting_groups), file_name, row.names = FALSE, col.names = FALSE)
+  
+  #Resetting for each season
+  voting_groups = list()
+}
+```
+
+Seasons 21 through 30
+```{r}
+alliance = c()
+voting_groups = list()
+seen = c()
+
+for (l in 21:30){ # Number of seasons I want to look at
+  vote_season = vote_history %>% filter(season == l) %>% filter(version == "US")
+  for ( i in 1:as.numeric(max(unique(vote_season$sog_id))) ){ # Number of stages of the game
+    if (nrow(vote_season %>% filter(sog_id == i)) > 0){# If a stage of a game is skipped (example: Medical Evacuation)
+    round = vote_season %>% filter(sog_id == i)
+    for ( j in 1 : (nrow(round) - 1) ){ # Number of voters in the stage of game
+      if (!is.na(round[[j, 21]])){ # If player j had a vote
+        if ( !(round[[j, 20]] %in% seen) ){ # No repeats 
+          alliance = c(round[[j, 20]])
+          seen = c(seen, round[[j, 20]])
+          for ( k in (j+1) : nrow(round) ){ # Comparing votes
+            if (!is.na(round[[k, 21]])){ # If player k had a vote
+              if ( ((round[j, 21] == round[k, 21])) &  (round[j, 20] != round[k, 20]) ){ # If the vote matched and its not the same person
+                alliance = append(alliance, round[[k, 20]])
+                seen = c(seen, round[[k, 20]])
+              }
+              else if(!is.na(round[j, 25]) & !is.na(round[k, 25])){
+                if( ( (round[j, 21] == round[j, 25]) | (round[j, 21] == round[j, 26]) ) & ( (round[k, 21] == round[k, 25]) | (round[k, 21] == round[k, 26]) ) ){
+                  alliance = append(alliance, round[[k, 20]])
+                  seen = c(seen, round[[k, 20]])
+                }
+              }
+            }
+          }
+          voting_groups = c(voting_groups, list(alliance))
+          }
+        }
+    }
+    if (!is.na(round[[nrow(round), 20]])){
+    if (!(round[[nrow(round), 20]] %in% seen)){
+      alliance = c(round[[nrow(round), 20]])
+      voting_groups = c(voting_groups, list(alliance))
+    }
+    }
+    seen = c() #Reset for each sog_id
+    }
+  }
+  
+  #Formatting for exporting as a table
+  largest_alliance = 0
+for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) > largest_alliance){
+    largest_alliance = length(voting_groups[[i]])
+  }
+}
+  for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) < largest_alliance){
+    length(voting_groups[[i]]) = largest_alliance
+  }
+}
+  # Exporting a table
+  df <- do.call(rbind, lapply(voting_groups, as.data.frame))
+  file_name <- paste0("s", l, "_voting_groups.txt")
+  write.table(do.call(rbind, voting_groups), file_name, row.names = FALSE, col.names = FALSE)
+  
+  #Resetting for each season
+  voting_groups = list()
+}
+```
+
+
+Seasons 31 through 40
+```{r}
+alliance = c()
+voting_groups = list()
+seen = c()
+
+for (l in 31:40){ # Number of seasons I want to look at
+  vote_season = vote_history %>% filter(season == l) %>% filter(version == "US")
+  for ( i in 1:as.numeric(max(unique(vote_season$sog_id))) ){ # Number of stages of the game
+    if (nrow(vote_season %>% filter(sog_id == i)) > 0){# If a stage of a game is skipped (example: Medical Evacuation)
+    round = vote_season %>% filter(sog_id == i)
+    for ( j in 1 : (nrow(round) - 1) ){ # Number of voters in the stage of game
+      if (!is.na(round[[j, 21]])){ # If player j had a vote
+        if ( !(round[[j, 20]] %in% seen) ){ # No repeats 
+          alliance = c(round[[j, 20]])
+          seen = c(seen, round[[j, 20]])
+          for ( k in (j+1) : nrow(round) ){ # Comparing votes
+            if (!is.na(round[[k, 21]])){ # If player k had a vote
+              if ( ((round[j, 21] == round[k, 21])) &  (round[j, 20] != round[k, 20]) ){ # If the vote matched and its not the same person
+                alliance = append(alliance, round[[k, 20]])
+                seen = c(seen, round[[k, 20]])
+              }
+              else if(!is.na(round[j, 25]) & !is.na(round[k, 25])){
+                if( ( (round[j, 21] == round[j, 25]) | (round[j, 21] == round[j, 26]) ) & ( (round[k, 21] == round[k, 25]) | (round[k, 21] == round[k, 26]) ) ){
+                  alliance = append(alliance, round[[k, 20]])
+                  seen = c(seen, round[[k, 20]])
+                }
+              }
+            }
+          }
+          voting_groups = c(voting_groups, list(alliance))
+          }
+        }
+    }
+    if (!is.na(round[[nrow(round), 20]])){
+    if (!(round[[nrow(round), 20]] %in% seen)){
+      alliance = c(round[[nrow(round), 20]])
+      voting_groups = c(voting_groups, list(alliance))
+    }
+    }
+    seen = c() #Reset for each sog_id
+    }
+  }
+  
+  #Formatting for exporting as a table
+  largest_alliance = 0
+for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) > largest_alliance){
+    largest_alliance = length(voting_groups[[i]])
+  }
+}
+  for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) < largest_alliance){
+    length(voting_groups[[i]]) = largest_alliance
+  }
+}
+  # Exporting a table
+  df <- do.call(rbind, lapply(voting_groups, as.data.frame))
+  file_name <- paste0("s", l, "_voting_groups.txt")
+  write.table(do.call(rbind, voting_groups), file_name, row.names = FALSE, col.names = FALSE)
+  
+  #Resetting for each season
+  voting_groups = list()
+}
+```
+
+
+Seasons 41 through 47
+```{r}
+alliance = c()
+voting_groups = list()
+seen = c()
+
+for (l in 41:47){ # Number of seasons I want to look at
+  vote_season = vote_history %>% filter(season == l) %>% filter(version == "US")
+  for ( i in 1:as.numeric(max(unique(vote_season$sog_id))) ){ # Number of stages of the game
+    if (nrow(vote_season %>% filter(sog_id == i)) > 0){# If a stage of a game is skipped (example: Medical Evacuation)
+    round = vote_season %>% filter(sog_id == i)
+    for ( j in 1 : (nrow(round)) ){ # Number of voters in the stage of game
+      if (!is.na(round[[j, 21]])){ # If player j had a vote
+        alliance = c(round[[j, 20]])
+        if ( !(round[[j, 20]] %in% seen) ){ # No repeats 
+          seen = c(seen, round[[j, 20]])
+          for ( k in (j+1) : nrow(round)-1 ){ # Comparing votes
+            if (!is.na(round[[k, 21]])){ # If player k had a vote
+              if ( ((round[j, 21] == round[k, 21])[1]) &  (round[j, 20] != round[k, 20])[1] ){ # If the vote matched and its not the same person
+                alliance = append(alliance, round[[k, 20]])
+                seen = c(seen, round[[k, 20]])
+              }
+              if(!is.na(round[j, 25]) & !is.na(round[k, 25])){
+                if( ( (round[j, 21] == round[j, 25]) | (round[j, 21] == round[j, 26]) ) & ( (round[k, 21] == round[k, 25]) | (round[k, 21] == round[k, 26]) ) ){
+                  alliance = append(alliance, round[[k, 20]])
+                  seen = c(seen, round[[k, 20]])
+                }
+              }
+            }
+          }
+          voting_groups = c(voting_groups, list(alliance))
+          }
+        }
+    }
+    if (!is.na(round[[nrow(round), 20]])){
+    if (!(round[[nrow(round), 20]] %in% seen)){
+      alliance = c(round[[nrow(round), 20]])
+      voting_groups = c(voting_groups, list(alliance))
+    }
+    }
+    seen = c() #Reset for each sog_id
+    }
+  }
+  
+  #Formatting for exporting as a table
+  largest_alliance = 0
+for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) > largest_alliance){
+    largest_alliance = length(voting_groups[[i]])
+  }
+}
+  for (i in 1:length(voting_groups)){
+  if(length(voting_groups[[i]]) < largest_alliance){
+    length(voting_groups[[i]]) = largest_alliance
+  }
+}
+  # Exporting a table
+  df <- do.call(rbind, lapply(voting_groups, as.data.frame))
+  file_name <- paste0("s", l, "_voting_groups.txt")
+  write.table(do.call(rbind, voting_groups), file_name, row.names = FALSE, col.names = FALSE)
+  
+  #Resetting for each season
+  voting_groups = list()
+}
+```
+
+```{r}
+s1_table = (read.table("s1_voting_groups.txt"))
+s1_gender = (read.table("s1_gender.txt"))
+s1_race = (read.table("s1_race.txt"))
+s2_table = (read.table("s2_voting_groups.txt"))
+s2_gender = (read.table("s2_gender.txt"))
+s2_race = (read.table("s2_race.txt"))
+s3_table = (read.table("s3_voting_groups.txt"))
+s3_gender = (read.table("s3_gender.txt"))
+s3_race = (read.table("s3_race.txt"))
+s4_table = (read.table("s4_voting_groups.txt"))
+s4_gender = (read.table("s4_gender.txt"))
+s4_race = (read.table("s4_race.txt"))
+s5_table = (read.table("s5_voting_groups.txt"))
+s5_gender = (read.table("s5_gender.txt"))
+s5_race = (read.table("s5_race.txt"))
+s6_table = (read.table("s6_voting_groups.txt"))
+s6_gender = (read.table("s6_gender.txt"))
+s6_race = (read.table("s6_race.txt"))
+s7_table = (read.table("s7_voting_groups.txt"))
+s7_gender = (read.table("s7_gender.txt"))
+s7_race = (read.table("s7_race.txt"))
+s8_table = (read.table("s8_voting_groups.txt"))
+s8_gender = (read.table("s8_gender.txt"))
+s8_race = (read.table("s8_race.txt"))
+s9_table = (read.table("s9_voting_groups.txt"))
+s9_gender = (read.table("s9_gender.txt"))
+s9_race = (read.table("s9_race.txt"))
+s10_table = (read.table("s10_voting_groups.txt"))
+s10_gender = (read.table("s10_gender.txt"))
+s10_race = (read.table("s10_race.txt"))
+
+```
+
+
+```{r}
+s11_table = (read.table("s11_voting_groups.txt"))
+s11_gender = (read.table("s11_gender.txt"))
+s11_race = (read.table("s11_race.txt"))
+s12_table = (read.table("s12_voting_groups.txt"))
+s12_gender = (read.table("s12_gender.txt"))
+s12_race = (read.table("s12_race.txt"))
+s13_table = (read.table("s13_voting_groups.txt"))
+s13_gender = (read.table("s13_gender.txt"))
+s13_race = (read.table("s13_race.txt"))
+s14_table = (read.table("s14_voting_groups.txt"))
+s14_gender = (read.table("s14_gender.txt"))
+s14_race = (read.table("s14_race.txt"))
+s15_table = (read.table("s15_voting_groups.txt"))
+s15_gender = (read.table("s15_gender.txt"))
+s15_race = (read.table("s15_race.txt"))
+s16_table = (read.table("s16_voting_groups.txt"))
+s16_gender = (read.table("s16_gender.txt"))
+s16_race = (read.table("s16_race.txt"))
+s17_table = (read.table("s17_voting_groups.txt"))
+s17_gender = (read.table("s17_gender.txt"))
+s17_race = (read.table("s17_race.txt"))
+s18_table = (read.table("s18_voting_groups.txt"))
+s18_gender = (read.table("s18_gender.txt"))
+s18_race = (read.table("s18_race.txt"))
+s19_table = (read.table("s19_voting_groups.txt"))
+s19_gender = (read.table("s19_gender.txt"))
+s19_race = (read.table("s19_race.txt"))
+s20_table = (read.table("s20_voting_groups.txt"))
+s20_gender = (read.table("s20_gender.txt"))
+s20_race = (read.table("s20_race.txt"))
+```
+
+```{r}
+vote_history %>% filter(version_season == "US16")
+```
+
+```{r}
+s21_table = (read.table("s21_voting_groups.txt"))
+s21_gender = (read.table("s21_gender.txt"))
+s21_race = (read.table("s21_race.txt"))
+s22_table = (read.table("s22_voting_groups.txt"))
+s22_gender = (read.table("s22_gender.txt"))
+s22_race = (read.table("s22_race.txt"))
+s23_table = (read.table("s23_voting_groups.txt"))
+s23_gender = (read.table("s23_gender.txt"))
+s23_race = (read.table("s23_race.txt"))
+s24_table = (read.table("s24_voting_groups.txt"))
+s24_gender = (read.table("s24_gender.txt"))
+s24_race = (read.table("s24_race.txt"))
+s25_table = (read.table("s25_voting_groups.txt"))
+s25_gender = (read.table("s25_gender.txt"))
+s25_race = (read.table("s25_race.txt"))
+s26_table = (read.table("s26_voting_groups.txt"))
+s26_gender = (read.table("s26_gender.txt"))
+s26_race = (read.table("s26_race.txt"))
+s27_table = (read.table("s27_voting_groups.txt"))
+s27_gender = (read.table("s27_gender.txt"))
+s27_race = (read.table("s27_race.txt"))
+s28_table = (read.table("s28_voting_groups.txt"))
+s28_gender = (read.table("s28_gender.txt"))
+s28_race = (read.table("s28_race.txt"))
+s29_table = (read.table("s29_voting_groups.txt"))
+s29_gender = (read.table("s29_gender.txt"))
+s29_race = (read.table("s29_race.txt"))
+s30_table = (read.table("s30_voting_groups.txt"))
+s30_gender = (read.table("s30_gender.txt"))
+s30_race = (read.table("s30_race.txt"))
+```
+
+
+```{r}
+s31_table = (read.table("s31_voting_groups.txt"))
+s31_gender = (read.table("s31_gender.txt"))
+s31_race = (read.table("s31_race.txt"))
+s32_table = (read.table("s32_voting_groups.txt"))
+s32_gender = (read.table("s32_gender.txt"))
+s32_race = (read.table("s32_race.txt"))
+s33_table = (read.table("s33_voting_groups.txt"))
+s33_gender = (read.table("s33_gender.txt"))
+s33_race = (read.table("s33_race.txt"))
+s34_table = (read.table("s34_voting_groups.txt"))
+s34_gender = (read.table("s34_gender.txt"))
+s34_race = (read.table("s34_race.txt"))
+s35_table = (read.table("s35_voting_groups.txt"))
+s35_gender = (read.table("s35_gender.txt"))
+s35_race = (read.table("s35_race.txt"))
+s36_table = (read.table("s36_voting_groups.txt"))
+s36_gender = (read.table("s36_gender.txt"))
+s36_race = (read.table("s36_race.txt"))
+s37_table = (read.table("s37_voting_groups.txt"))
+s37_gender = (read.table("s37_gender.txt"))
+s37_race = (read.table("s37_race.txt"))
+s38_table = (read.table("s38_voting_groups.txt"))
+s38_gender = (read.table("s38_gender.txt"))
+s38_race = (read.table("s38_race.txt"))
+s39_table = (read.table("s39_voting_groups.txt"))
+s39_gender = (read.table("s39_gender.txt"))
+s39_race = (read.table("s39_race.txt"))
+s40_table = (read.table("s40_voting_groups.txt"))
+s40_gender = (read.table("s40_gender.txt"))
+s40_race = (read.table("s40_race.txt"))
+```
+
+Identifing the gender and race of each voting group: seasons 1 through 30
+```{r}
+for (l in 1:40){
+  gender_temp = get(paste0("s",l , "_table"))
+  race_temp = get(paste0("s",l , "_table"))
+  for (i in 1:ncol(gender_temp)){ # i is column
+    for (j in 1:nrow(gender_temp)){ # j is row
+      for (k in 1:nrow(castaway_details)){
+        if(!is.na(gender_temp[j, i])){
+          if(gender_temp[j, i] == castaway_details$castaway_id[k]){
+            gender_temp[j, i] = castaway_details$gender[k]
+          if (castaway_details$african[k] == TRUE){
+            race_temp[j, i] = "African"
+          }
+          else if (castaway_details$asian[k] == TRUE){
+            race_temp[j, i] = "Asian"
+          }
+          else if (castaway_details$latin_american[k] == TRUE){
+            race_temp[j, i] = "Latin"
+          }
+          else if (castaway_details$native_american[k] == TRUE){
+            race_temp[j, i] = "Native"
+          }
+          else{
+            race_temp[j, i] = "Caucasian"
+          }
+          break
+        }
+      }
+    }
+  }
+  }
+  file_name_1 <- paste0("s", l, "_gender.txt")
+  file_name_2 <- paste0("s", l, "_race.txt")
+  write.table(gender_temp, file_name_1, row.names = FALSE, col.names = FALSE)
+  write.table(race_temp, file_name_2, row.names = FALSE, col.names = FALSE)
+}
+
+```
+
+
+```{r}
+  #vote_history %>% filter(version == "US")
+  gender_list <- data.frame(matrix(ncol= 2, nrow= 0))
+  names <- c("Male", "Female")
+  colnames(gender_list) = names
+  race_list <- data.frame(matrix(ncol= 5, 0))
+  names <- c("African", "Asian", "Latin American", "Native American", "Caucasian")
+  colnames(race_list) = names
+  
+for (l in 1:40){
+  gender_list_temp = data.frame(matrix(ncol= 2, nrow= nrow(get(paste0("s", l, "_gender")))))
+  names <- c("Male", "Female")
+  colnames(gender_list_temp) = names
+  race_list_temp = data.frame(matrix(ncol= 5, nrow= nrow(get(paste0("s", l, "_race")))))
+  names <- c("African", "Asian", "Latin American", "Native American", "Caucasian")
+  colnames(race_list_temp) = names
+  m_count = 0
+  f_count = 0
+  #gender_list <- data.frame(matrix(ncol= 2, nrow= nrow(get(paste0("s", l, "_gender")))))
+  #names <- c("Male", "Female")
+  #colnames(gender_list) = names
+  
+  a = 0
+  b = 0
+  c = 0
+  d = 0
+  e = 0
+  #race_list <- data.frame(matrix(ncol= 5, nrow(get(paste0("s", l, "_gender")))))
+  #names <- c("African", "Asian", "Latin American", "Native American", "Caucasian")
+  #colnames(race_list) = names
+  
+  for (i in 1:nrow(get(paste0("s", l, "_gender")))){
+    for (j in 1:ncol(get(paste0("s", l, "_gender")))){
+      if(!is.na(get(paste0("s", l, "_gender"))[i, j])){
+        if(get(paste0("s", l, "_gender"))[i, j] == "Male"){
+          m_count = m_count + 1
+        }
+        if(get(paste0("s", l, "_gender"))[i, j] == "Female"){
+          f_count = f_count + 1
+        }
+        if(get(paste0("s", l, "_race"))[i, j] == "African"){
+          a = a + 1
+        }
+        else if(get(paste0("s", l, "_race"))[i, j] == "Asian"){
+          b = b + 1
+        }
+        else if(get(paste0("s", l, "_race"))[i, j] == "Latin American"){
+          c = c + 1
+        }
+        else if(get(paste0("s", l, "_race"))[i, j] == "Native American"){
+          d = d + 1
+        }
+        else if(get(paste0("s", l, "_race"))[i, j] == "Caucasian"){
+          e = e + 1
+        }
+      }
+    }
+    gender_list_temp[i, 1] = m_count
+    gender_list_temp[i, 2] = f_count
+    race_list_temp[i, 1] = a
+    race_list_temp[i, 2] = b
+    race_list_temp[i, 3] = c
+    race_list_temp[i, 4] = d
+    race_list_temp[i, 5] = e
+    m_count = 0
+    f_count = 0
+    a = 0
+    b = 0
+    c = 0
+    d = 0
+    e = 0
+  }
+  #file_name_1 = paste0("s", l, "_gender_count.txt")
+  #file_name_2 = paste0("s", l, "_race_count.txt")
+  #write.table(gender_list, file_name_1, row.names = FALSE, col.names = FALSE)
+  #write.table(race_list, file_name_2, row.names = FALSE, col.names = FALSE)
+  
+  #file_name_3 = paste0("s", l, "_gender.txt")
+  #file_name_4 = paste0("s", l, "_race.txt")
+  #write.table(get(paste0("s",l, "_gender")), file_name_3, row.names = FALSE, col.names = FALSE)
+  #write.table(get(paste0("s",l, "_race")), file_name_4, row.names = FALSE, col.names = FALSE)
+  gender_list = rbind(gender_list, gender_list_temp)
+  race_list = rbind(race_list, race_list_temp)
+}
+```
+
+
+```{r}
+place_df = castaways %>% filter(version == "US")
+for (l in 1:40){
+  place_temp = get(paste0("s", l, "_table"))
+  for (i in 1:nrow(place_temp)){
+    for (j in 1:ncol(place_temp)){
+      if (!is.na(place_temp[i, j])){
+        for (k in 1:nrow(place_df)){
+          if (place_temp[i, j] == place_df$castaway_id[k]){
+            place_temp[i, j] = place_df$place[k]
+            break
+          }
+        }
+      }
+    }
+  }
+  file_name = paste0("s", l, "_place.txt")
+  write.table(place_temp, file_name, row.names = FALSE, col.names = FALSE)
+}
+```
+
+
